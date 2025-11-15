@@ -1,0 +1,37 @@
+[package]
+name = "silver-gpu"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "GPU acceleration layer for SilverBitcoin (OpenCL/CUDA/Metal)"
+
+[dependencies]
+# Core
+silver-core = { path = "../silver-core" }
+silver-crypto = { path = "../silver-crypto" }
+
+# Workspace dependencies
+tokio = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+bytes = { workspace = true }
+
+# GPU backends (all optional)
+ocl = { version = "0.19", optional = true }
+cudarc = { version = "0.10", optional = true }
+metal = { version = "0.27", optional = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[features]
+default = []
+opencl = ["ocl"]
+cuda = ["cudarc"]
+metal-gpu = ["metal"]
+all-backends = ["opencl", "cuda", "metal-gpu"]

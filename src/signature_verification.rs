@@ -26,7 +26,11 @@ impl BufferPool {
     }
 
     /// Get buffer from pool or create new one
-    pub fn acquire(&mut self, size: usize, context: &crate::backend::GPUContext) -> Result<GPUBuffer, GPUError> {
+    pub fn acquire(
+        &mut self,
+        size: usize,
+        context: &crate::backend::GPUContext,
+    ) -> Result<GPUBuffer, GPUError> {
         // Try to reuse existing buffer
         if let Some(buffer) = self.available_buffers.pop() {
             if buffer.size() >= size {
@@ -93,7 +97,7 @@ impl GPUSignatureVerifier {
     pub fn new(accelerator: Arc<GPUAccelerator>) -> Result<Self, GPUError> {
         let device = accelerator.device();
         let config = BatchConfig::auto_tune(device.available_memory);
-        
+
         info!(
             "Initializing GPU signature verifier: backend={:?}, batch_size={}",
             device.backend, config.batch_size
@@ -122,24 +126,14 @@ impl GPUSignatureVerifier {
     fn compile_kernels(&mut self) -> Result<(), GPUError> {
         match self.accelerator.backend() {
             #[cfg(feature = "opencl")]
-            GPUBackend::OpenCL => {
-                self.compile_opencl_kernel()
-            }
+            GPUBackend::OpenCL => self.compile_opencl_kernel(),
             #[cfg(feature = "cuda")]
-            GPUBackend::CUDA => {
-                self.compile_cuda_kernel()
-            }
+            GPUBackend::CUDA => self.compile_cuda_kernel(),
             #[cfg(feature = "metal-gpu")]
-            GPUBackend::Metal => {
-                self.compile_metal_kernel()
-            }
-            GPUBackend::None => {
-                Err(GPUError::NoGPUAvailable)
-            }
+            GPUBackend::Metal => self.compile_metal_kernel(),
+            GPUBackend::None => Err(GPUError::NoGPUAvailable),
             #[allow(unreachable_patterns)]
-            _ => {
-                Err(GPUError::BackendNotAvailable)
-            }
+            _ => Err(GPUError::BackendNotAvailable),
         }
     }
 
@@ -147,7 +141,7 @@ impl GPUSignatureVerifier {
     #[cfg(feature = "opencl")]
     fn compile_opencl_kernel(&mut self) -> Result<(), GPUError> {
         let kernel_source = include_str!("kernels/ed25519_verify.cl");
-        
+
         let context = self.accelerator.context();
         if let Some(ref ocl_context) = context.opencl_context {
             if let Some(ref queue) = context.opencl_queue {
@@ -210,7 +204,9 @@ impl GPUSignatureVerifier {
                 "Batch size {} below minimum {}, falling back to CPU",
                 batch_size, self.config.min_batch_size
             );
-            return self.verify_batch_cpu(signatures, messages, public_keys).await;
+            return self
+                .verify_batch_cpu(signatures, messages, public_keys)
+                .await;
         }
 
         debug!("Verifying batch of {} signatures on GPU", batch_size);
@@ -218,18 +214,22 @@ impl GPUSignatureVerifier {
         match self.accelerator.backend() {
             #[cfg(feature = "opencl")]
             GPUBackend::OpenCL => {
-                self.verify_batch_opencl(signatures, messages, public_keys).await
+                self.verify_batch_opencl(signatures, messages, public_keys)
+                    .await
             }
             #[cfg(feature = "cuda")]
             GPUBackend::CUDA => {
-                self.verify_batch_cuda(signatures, messages, public_keys).await
+                self.verify_batch_cuda(signatures, messages, public_keys)
+                    .await
             }
             #[cfg(feature = "metal-gpu")]
             GPUBackend::Metal => {
-                self.verify_batch_metal(signatures, messages, public_keys).await
+                self.verify_batch_metal(signatures, messages, public_keys)
+                    .await
             }
             GPUBackend::None => {
-                self.verify_batch_cpu(signatures, messages, public_keys).await
+                self.verify_batch_cpu(signatures, messages, public_keys)
+                    .await
             }
             #[allow(unreachable_patterns)]
             _ => Err(GPUError::BackendNotAvailable),
@@ -338,7 +338,8 @@ impl GPUSignatureVerifier {
         // CUDA implementation would go here
         // Similar structure to OpenCL but using CUDA APIs
         warn!("CUDA verification not fully implemented, falling back to CPU");
-        self.verify_batch_cpu(signatures, messages, public_keys).await
+        self.verify_batch_cpu(signatures, messages, public_keys)
+            .await
     }
 
     /// Verify batch using Metal
@@ -352,7 +353,8 @@ impl GPUSignatureVerifier {
         // Metal implementation would go here
         // Similar structure but using Metal APIs
         warn!("Metal verification not fully implemented, falling back to CPU");
-        self.verify_batch_cpu(signatures, messages, public_keys).await
+        self.verify_batch_cpu(signatures, messages, public_keys)
+            .await
     }
 
     /// CPU fallback for signature verification
@@ -362,16 +364,41 @@ impl GPUSignatureVerifier {
         messages: &[Vec<u8>],
         public_keys: &[PublicKey],
     ) -> Result<Vec<bool>, GPUError> {
-        // Placeholder CPU verification
-        // In production, this would use actual signature verification from silver-crypto
+        // Use actual signature verification from silver-crypto
         let results = signatures
             .iter()
             .zip(messages.iter())
             .zip(public_keys.iter())
-            .map(|((_sig, _msg), _key)| {
-                // Placeholder: always return true
-                // Real implementation would verify signature
-                true
+            .map(|((sig, msg), key)| {
+                // Verify each signature using the cryptographic library
+                use silver_crypto::signatures::SignatureVerifier;
+                
+                // Select the appropriate verifier based on the signature scheme
+                let verifier: Box<dyn SignatureVerifier> = match sig.scheme {
+                    silver_core::SignatureScheme::Secp256k1 => {
+                        Box::new(silver_crypto::signatures::Secp256k1Signer)
+                    }
+                    silver_core::SignatureScheme::Secp512r1 => {
+                        Box::new(silver_crypto::signatures::Secp512r1)
+                    }
+                    silver_core::SignatureScheme::Dilithium3 => {
+                        Box::new(silver_crypto::signatures::Dilithium3)
+                    }
+                    silver_core::SignatureScheme::SphincsPlus => {
+                        Box::new(silver_crypto::signatures::SphincsPlus)
+                    }
+                    silver_core::SignatureScheme::Hybrid => {
+                        Box::new(silver_crypto::signatures::HybridSignature)
+                    }
+                };
+                
+                match verifier.verify(msg, sig, key) {
+                    Ok(()) => true,
+                    Err(e) => {
+                        tracing::warn!("Signature verification error: {}", e);
+                        false
+                    }
+                }
             })
             .collect();
 
@@ -390,10 +417,10 @@ impl GPUSignatureVerifier {
         }
 
         match self.accelerator.backend() {
-            GPUBackend::OpenCL => 50.0,  // 50x speedup
-            GPUBackend::CUDA => 200.0,   // 200x speedup (optimized)
-            GPUBackend::Metal => 100.0,  // 100x speedup
-            GPUBackend::None => 1.0,     // No speedup
+            GPUBackend::OpenCL => 50.0, // 50x speedup
+            GPUBackend::CUDA => 200.0,  // 200x speedup (optimized)
+            GPUBackend::Metal => 100.0, // 100x speedup
+            GPUBackend::None => 1.0,    // No speedup
         }
     }
 }

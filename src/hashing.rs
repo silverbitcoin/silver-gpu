@@ -3,6 +3,7 @@
 //! Provides batch Blake3-512 hashing with 10-100x speedup over CPU.
 
 use crate::backend::{GPUAccelerator, GPUBackend, GPUBuffer, GPUError};
+use silver_crypto::hashing::hash_512_batch;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
@@ -25,7 +26,11 @@ impl HashBufferPool {
     }
 
     /// Acquire input buffer
-    pub fn acquire_input(&mut self, size: usize, context: &crate::backend::GPUContext) -> Result<GPUBuffer, GPUError> {
+    pub fn acquire_input(
+        &mut self,
+        size: usize,
+        context: &crate::backend::GPUContext,
+    ) -> Result<GPUBuffer, GPUError> {
         if let Some(buffer) = self.input_buffers.pop() {
             if buffer.size() >= size {
                 return Ok(buffer);
@@ -35,7 +40,11 @@ impl HashBufferPool {
     }
 
     /// Acquire output buffer
-    pub fn acquire_output(&mut self, size: usize, context: &crate::backend::GPUContext) -> Result<GPUBuffer, GPUError> {
+    pub fn acquire_output(
+        &mut self,
+        size: usize,
+        context: &crate::backend::GPUContext,
+    ) -> Result<GPUBuffer, GPUError> {
         if let Some(buffer) = self.output_buffers.pop() {
             if buffer.size() >= size {
                 return Ok(buffer);
@@ -131,24 +140,14 @@ impl GPUHasher {
     fn compile_kernels(&mut self) -> Result<(), GPUError> {
         match self.accelerator.backend() {
             #[cfg(feature = "opencl")]
-            GPUBackend::OpenCL => {
-                self.compile_opencl_kernel()
-            }
+            GPUBackend::OpenCL => self.compile_opencl_kernel(),
             #[cfg(feature = "cuda")]
-            GPUBackend::CUDA => {
-                self.compile_cuda_kernel()
-            }
+            GPUBackend::CUDA => self.compile_cuda_kernel(),
             #[cfg(feature = "metal-gpu")]
-            GPUBackend::Metal => {
-                self.compile_metal_kernel()
-            }
-            GPUBackend::None => {
-                Err(GPUError::NoGPUAvailable)
-            }
+            GPUBackend::Metal => self.compile_metal_kernel(),
+            GPUBackend::None => Err(GPUError::NoGPUAvailable),
             #[allow(unreachable_patterns)]
-            _ => {
-                Err(GPUError::BackendNotAvailable)
-            }
+            _ => Err(GPUError::BackendNotAvailable),
         }
     }
 
@@ -252,7 +251,7 @@ impl GPUHasher {
 
         // Transfer data to GPU
         context.write_buffer(&mut input_buffer, &input_data)?;
-        
+
         // Convert offsets and lengths to bytes
         let offset_bytes: Vec<u8> = input_offsets
             .iter()
@@ -262,7 +261,7 @@ impl GPUHasher {
             .iter()
             .flat_map(|&l| l.to_le_bytes())
             .collect();
-        
+
         context.write_buffer(&mut offset_buffer, &offset_bytes)?;
         context.write_buffer(&mut length_buffer, &length_bytes)?;
 
@@ -336,19 +335,9 @@ impl GPUHasher {
 
     /// CPU fallback for hashing
     async fn hash_batch_cpu(&self, inputs: &[Vec<u8>]) -> Result<Vec<[u8; 64]>, GPUError> {
-        // Use CPU Blake3 from silver-crypto
-        let results = inputs
-            .iter()
-            .map(|input| {
-                // Placeholder: would use actual Blake3-512 from silver-crypto
-                let mut hash = [0u8; 64];
-                // Simple hash for demonstration
-                for (i, &byte) in input.iter().enumerate() {
-                    hash[i % 64] ^= byte;
-                }
-                hash
-            })
-            .collect();
+        // Use CPU Blake3-512 from silver-crypto
+        let input_refs: Vec<&[u8]> = inputs.iter().map(|v| v.as_slice()).collect();
+        let results = hash_512_batch(&input_refs);
 
         Ok(results)
     }
@@ -365,9 +354,9 @@ impl GPUHasher {
         }
 
         match self.accelerator.backend() {
-            GPUBackend::OpenCL => 20.0,  // 20x speedup
-            GPUBackend::CUDA => 100.0,   // 100x speedup
-            GPUBackend::Metal => 50.0,   // 50x speedup
+            GPUBackend::OpenCL => 20.0, // 20x speedup
+            GPUBackend::CUDA => 100.0,  // 100x speedup
+            GPUBackend::Metal => 50.0,  // 50x speedup
             GPUBackend::None => 1.0,
         }
     }

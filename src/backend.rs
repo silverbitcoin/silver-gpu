@@ -111,14 +111,16 @@ impl GPUContext {
         match self.device.backend {
             #[cfg(feature = "opencl")]
             GPUBackend::OpenCL => {
-                let queue = self.opencl_queue.as_ref()
+                let queue = self
+                    .opencl_queue
+                    .as_ref()
                     .ok_or(GPUError::BackendNotAvailable)?;
                 let buffer = ocl::Buffer::<u8>::builder()
                     .queue(queue.clone())
                     .len(size)
                     .build()
                     .map_err(|e| GPUError::BufferCreationFailed(e.to_string()))?;
-                
+
                 Ok(GPUBuffer {
                     backend: GPUBackend::OpenCL,
                     size,
@@ -131,11 +133,14 @@ impl GPUContext {
             }
             #[cfg(feature = "cuda")]
             GPUBackend::CUDA => {
-                let device = self.cuda_device.as_ref()
+                let device = self
+                    .cuda_device
+                    .as_ref()
                     .ok_or(GPUError::BackendNotAvailable)?;
-                let buffer = device.alloc_zeros::<u8>(size)
+                let buffer = device
+                    .alloc_zeros::<u8>(size)
                     .map_err(|e| GPUError::BufferCreationFailed(e.to_string()))?;
-                
+
                 Ok(GPUBuffer {
                     backend: GPUBackend::CUDA,
                     size,
@@ -148,10 +153,13 @@ impl GPUContext {
             }
             #[cfg(feature = "metal-gpu")]
             GPUBackend::Metal => {
-                let device = self.metal_device.as_ref()
+                let device = self
+                    .metal_device
+                    .as_ref()
                     .ok_or(GPUError::BackendNotAvailable)?;
-                let buffer = device.new_buffer(size as u64, metal::MTLResourceOptions::StorageModeShared);
-                
+                let buffer =
+                    device.new_buffer(size as u64, metal::MTLResourceOptions::StorageModeShared);
+
                 Ok(GPUBuffer {
                     backend: GPUBackend::Metal,
                     size,
@@ -178,7 +186,8 @@ impl GPUContext {
             #[cfg(feature = "opencl")]
             GPUBackend::OpenCL => {
                 if let Some(ref mut ocl_buf) = buffer.opencl_buffer {
-                    ocl_buf.write(data)
+                    ocl_buf
+                        .write(data)
                         .enq()
                         .map_err(|e| GPUError::TransferFailed(e.to_string()))?;
                     Ok(())
@@ -189,9 +198,12 @@ impl GPUContext {
             #[cfg(feature = "cuda")]
             GPUBackend::CUDA => {
                 if let Some(ref cuda_buf) = buffer.cuda_buffer {
-                    let device = self.cuda_device.as_ref()
+                    let device = self
+                        .cuda_device
+                        .as_ref()
                         .ok_or(GPUError::BackendNotAvailable)?;
-                    device.htod_copy_into(data, cuda_buf)
+                    device
+                        .htod_copy_into(data, cuda_buf)
                         .map_err(|e| GPUError::TransferFailed(e.to_string()))?;
                     Ok(())
                 } else {
@@ -226,7 +238,8 @@ impl GPUContext {
             #[cfg(feature = "opencl")]
             GPUBackend::OpenCL => {
                 if let Some(ref ocl_buf) = buffer.opencl_buffer {
-                    ocl_buf.read(data)
+                    ocl_buf
+                        .read(data)
                         .enq()
                         .map_err(|e| GPUError::TransferFailed(e.to_string()))?;
                     Ok(())
@@ -237,9 +250,12 @@ impl GPUContext {
             #[cfg(feature = "cuda")]
             GPUBackend::CUDA => {
                 if let Some(ref cuda_buf) = buffer.cuda_buffer {
-                    let device = self.cuda_device.as_ref()
+                    let device = self
+                        .cuda_device
+                        .as_ref()
                         .ok_or(GPUError::BackendNotAvailable)?;
-                    device.dtoh_sync_copy_into(cuda_buf, data)
+                    device
+                        .dtoh_sync_copy_into(cuda_buf, data)
                         .map_err(|e| GPUError::TransferFailed(e.to_string()))?;
                     Ok(())
                 } else {
@@ -309,11 +325,10 @@ impl GPUAccelerator {
     /// Try to initialize Metal backend
     #[cfg(feature = "metal-gpu")]
     fn try_metal() -> Result<Self, GPUError> {
-        let device = metal::Device::system_default()
-            .ok_or(GPUError::NoGPUAvailable)?;
-        
+        let device = metal::Device::system_default().ok_or(GPUError::NoGPUAvailable)?;
+
         let queue = device.new_command_queue();
-        
+
         let gpu_device = GPUDevice {
             backend: GPUBackend::Metal,
             name: device.name().to_string(),
@@ -343,21 +358,23 @@ impl GPUAccelerator {
     #[cfg(feature = "cuda")]
     fn try_cuda() -> Result<Self, GPUError> {
         use cudarc::driver::CudaDevice;
-        
-        let device = CudaDevice::new(0)
+
+        let device =
+            CudaDevice::new(0).map_err(|e| GPUError::InitializationFailed(e.to_string()))?;
+
+        let name = device
+            .name()
             .map_err(|e| GPUError::InitializationFailed(e.to_string()))?;
-        
-        let name = device.name()
+        let total_memory = device
+            .total_memory()
             .map_err(|e| GPUError::InitializationFailed(e.to_string()))?;
-        let total_memory = device.total_memory()
-            .map_err(|e| GPUError::InitializationFailed(e.to_string()))?;
-        
+
         let gpu_device = GPUDevice {
             backend: GPUBackend::CUDA,
             name,
             total_memory: total_memory as u64,
             available_memory: total_memory as u64,
-            compute_units: 0, // Would need to query device properties
+            compute_units: 0,          // Would need to query device properties
             max_work_group_size: 1024, // Common CUDA limit
             vendor: "NVIDIA".to_string(),
         };
@@ -384,27 +401,32 @@ impl GPUAccelerator {
         let platform = ocl::Platform::default();
         let device = ocl::Device::first(platform)
             .map_err(|e| GPUError::InitializationFailed(e.to_string()))?;
-        
+
         let context = ocl::Context::builder()
             .platform(platform)
             .devices(device)
             .build()
             .map_err(|e| GPUError::InitializationFailed(e.to_string()))?;
-        
+
         let queue = ocl::Queue::new(&context, device, None)
             .map_err(|e| GPUError::InitializationFailed(e.to_string()))?;
-        
-        let name = device.name()
+
+        let name = device
+            .name()
             .map_err(|e| GPUError::InitializationFailed(e.to_string()))?;
-        let total_memory = device.mem_size()
+        let total_memory = device
+            .mem_size()
             .map_err(|e| GPUError::InitializationFailed(e.to_string()))?;
-        let compute_units = device.max_compute_units()
+        let compute_units = device
+            .max_compute_units()
             .map_err(|e| GPUError::InitializationFailed(e.to_string()))?;
-        let max_work_group_size = device.max_wg_size()
+        let max_work_group_size = device
+            .max_wg_size()
             .map_err(|e| GPUError::InitializationFailed(e.to_string()))?;
-        let vendor = device.vendor()
+        let vendor = device
+            .vendor()
             .map_err(|e| GPUError::InitializationFailed(e.to_string()))?;
-        
+
         let gpu_device = GPUDevice {
             backend: GPUBackend::OpenCL,
             name,
@@ -482,39 +504,39 @@ pub enum GPUError {
     /// No GPU available
     #[error("No GPU available")]
     NoGPUAvailable,
-    
+
     /// Backend not available
     #[error("GPU backend not available")]
     BackendNotAvailable,
-    
+
     /// Initialization failed
     #[error("GPU initialization failed: {0}")]
     InitializationFailed(String),
-    
+
     /// Buffer creation failed
     #[error("Buffer creation failed: {0}")]
     BufferCreationFailed(String),
-    
+
     /// Data transfer failed
     #[error("Data transfer failed: {0}")]
     TransferFailed(String),
-    
+
     /// Kernel compilation failed
     #[error("Kernel compilation failed: {0}")]
     KernelCompilationFailed(String),
-    
+
     /// Kernel execution failed
     #[error("Kernel execution failed: {0}")]
     KernelExecutionFailed(String),
-    
+
     /// Invalid buffer
     #[error("Invalid buffer")]
     InvalidBuffer,
-    
+
     /// Buffer too small
     #[error("Buffer too small")]
     BufferTooSmall,
-    
+
     /// Unsupported operation
     #[error("Unsupported operation: {0}")]
     UnsupportedOperation(String),

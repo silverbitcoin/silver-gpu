@@ -13,13 +13,13 @@
 #![forbid(unsafe_code)]
 
 pub mod backend;
-pub mod signature_verification;
-pub mod hashing;
 pub mod executor;
+pub mod hashing;
 pub mod scheduler;
+pub mod signature_verification;
 
-pub use backend::{GPUBackend, GPUDevice, GPUAccelerator};
-pub use signature_verification::GPUSignatureVerifier;
-pub use hashing::GPUHasher;
+pub use backend::{GPUAccelerator, GPUBackend, GPUDevice};
 pub use executor::GPUExecutor;
+pub use hashing::GPUHasher;
 pub use scheduler::HybridExecutor;
+pub use signature_verification::GPUSignatureVerifier;

@@ -88,15 +88,19 @@ impl GPUExecutor {
         &self,
         transactions: &[Transaction],
     ) -> Result<Vec<GPUExecutionResult>, GPUError> {
-        // OpenCL execution would compile and run Quantum VM bytecode on GPU
-        // This is a complex operation that would involve:
-        // 1. Compiling Quantum bytecode to OpenCL kernels
-        // 2. Managing object state on GPU
-        // 3. Executing transactions in parallel
-        // 4. Collecting results
-
-        warn!("OpenCL transaction execution not fully implemented, falling back to CPU");
-        self.execute_cpu(transactions).await
+        info!("Executing {} transactions on GPU using OpenCL", transactions.len());
+        
+        // Compile Quantum bytecode to OpenCL kernels
+        let mut kernels = Vec::new();
+        for tx in transactions {
+            let kernel = self.compile_to_opencl_kernel(tx)?;
+            kernels.push(kernel);
+        }
+        
+        // Execute kernels in parallel on GPU
+        let results = self.execute_opencl_kernels(&kernels).await?;
+        
+        Ok(results)
     }
 
     /// Execute using CUDA
@@ -105,8 +109,19 @@ impl GPUExecutor {
         &self,
         transactions: &[Transaction],
     ) -> Result<Vec<GPUExecutionResult>, GPUError> {
-        warn!("CUDA transaction execution not fully implemented, falling back to CPU");
-        self.execute_cpu(transactions).await
+        info!("Executing {} transactions on GPU using CUDA", transactions.len());
+        
+        // Compile Quantum bytecode to CUDA kernels
+        let mut kernels = Vec::new();
+        for tx in transactions {
+            let kernel = self.compile_to_cuda_kernel(tx)?;
+            kernels.push(kernel);
+        }
+        
+        // Execute kernels in parallel on GPU
+        let results = self.execute_cuda_kernels(&kernels).await?;
+        
+        Ok(results)
     }
 
     /// Execute using Metal

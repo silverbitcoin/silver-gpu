@@ -168,18 +168,47 @@ impl GPUSignatureVerifier {
     /// Compile CUDA kernel
     #[cfg(feature = "cuda")]
     fn compile_cuda_kernel(&mut self) -> Result<(), GPUError> {
-        // CUDA kernel compilation would happen here
-        // In production, this would use nvrtc or pre-compiled PTX
-        info!("CUDA kernel compiled successfully");
+        use std::process::Command;
+        
+        // Compile CUDA kernel using nvrtc
+        let output = Command::new("nvrtc-compile")
+            .arg("--gpu-architecture=sm_70")
+            .arg("--output-file=signature_verify.ptx")
+            .arg("signature_verify.cu")
+            .output()
+            .map_err(|e| GPUError::CompilationFailed(format!("CUDA compilation failed: {}", e)))?;
+        
+        if !output.status.success() {
+            return Err(GPUError::CompilationFailed(
+                String::from_utf8_lossy(&output.stderr).to_string()
+            ));
+        }
+        
+        info!("CUDA kernel compiled successfully to PTX");
         Ok(())
     }
 
     /// Compile Metal kernel
     #[cfg(feature = "metal-gpu")]
     fn compile_metal_kernel(&mut self) -> Result<(), GPUError> {
-        // Metal kernel compilation would happen here
-        // In production, this would compile the Metal shader
-        info!("Metal kernel compiled successfully");
+        use std::process::Command;
+        
+        // Compile Metal shader using metal compiler
+        let output = Command::new("metal")
+            .arg("-c")
+            .arg("signature_verify.metal")
+            .arg("-o")
+            .arg("signature_verify.air")
+            .output()
+            .map_err(|e| GPUError::CompilationFailed(format!("Metal compilation failed: {}", e)))?;
+        
+        if !output.status.success() {
+            return Err(GPUError::CompilationFailed(
+                String::from_utf8_lossy(&output.stderr).to_string()
+            ));
+        }
+        
+        info!("Metal kernel compiled successfully to AIR");
         Ok(())
     }
 

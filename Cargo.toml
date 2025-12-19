@@ -1,37 +1,57 @@
 [package]
 name = "silver-gpu"
-version.workspace = true
+version = "2.5.3"
 edition.workspace = true
-rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "GPU acceleration layer for SilverBitcoin (OpenCL/CUDA/Metal)"
+keywords = ["gpu", "cuda", "acceleration", "mining"]
+categories = ["hardware-support"]
+description = "GPU acceleration for SilverBitcoin mining and computation"
 
 [dependencies]
-# Core
 silver-core = { path = "../silver-core" }
-silver-crypto = { path = "../silver-crypto" }
+silver-pow = { path = "../silver-pow" }
 
-# Workspace dependencies
 tokio = { workspace = true }
-futures = { workspace = true }
 async-trait = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+
 thiserror = { workspace = true }
+anyhow = { workspace = true }
+
 tracing = { workspace = true }
 bytes = { workspace = true }
+hex = { workspace = true }
 
-# GPU backends (all optional)
+parking_lot = { workspace = true }
+dashmap = { workspace = true }
+
+chrono = { workspace = true }
+
+# Cryptography
+sha2 = { workspace = true }
+
+# CPU utilities
+num_cpus = "1.16"
+
+# GPU libraries (optional features)
 ocl = { version = "0.19", optional = true }
-cudarc = { version = "0.10", optional = true }
-metal = { version = "0.27", optional = true }
-
-[dev-dependencies]
-criterion = { workspace = true }
+cudarc = { version = "0.12", optional = true }
 
 [features]
-default = []
+default = ["opencl"]
 opencl = ["ocl"]
 cuda = ["cudarc"]
-metal-gpu = ["metal"]
-all-backends = ["opencl", "cuda", "metal-gpu"]
+all-gpu = ["opencl", "cuda"]
+
+[dev-dependencies]
+tempfile = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "gpu_benchmarks"
+harness = false

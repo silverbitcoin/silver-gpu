@@ -116,7 +116,7 @@ impl GpuMiner {
     }
 
     /// Mine batch using CUDA
-    async fn mine_batch_cuda(&self, _data: &[u8], _target: &[u8]) -> Result<Option<Vec<u8>>> {
+    async fn mine_batch_cuda(&self, data: &[u8], target: &[u8]) -> Result<Option<Vec<u8>>> {
         #[cfg(feature = "cuda")]
         {
             use sha2::{Sha512, Digest};
@@ -151,6 +151,8 @@ impl GpuMiner {
 
         #[cfg(not(feature = "cuda"))]
         {
+            // CUDA not available - log and return error
+            debug!("CUDA mining requested but CUDA feature not compiled. Data size: {}, Target size: {}", data.len(), target.len());
             Err(GpuError::BackendNotSupported("CUDA not compiled".to_string()))
         }
     }
@@ -192,6 +194,8 @@ impl GpuMiner {
 
         #[cfg(not(feature = "opencl"))]
         {
+            // OpenCL not available - log and return error
+            debug!("OpenCL mining requested but OpenCL feature not compiled. Data size: {}, Target size: {}", data.len(), target.len());
             Err(GpuError::BackendNotSupported("OpenCL not compiled".to_string()))
         }
     }

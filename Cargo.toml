@@ -48,7 +48,7 @@ ocl = { version = "0.19", optional = true }
 cudarc = { version = "0.12", optional = true }
 
 [features]
-default = ["opencl"]
+default = []
 opencl = ["ocl"]
 cuda = ["cudarc"]
 all-gpu = ["opencl", "cuda"]

@@ -151,7 +151,9 @@ impl GpuContext {
 
         #[cfg(not(feature = "opencl"))]
         {
-            Err(GpuError::BackendNotSupported("OpenCL not compiled".to_string()))
+            // OpenCL not compiled - fallback to CPU
+            warn!("OpenCL not available, falling back to CPU");
+            Self::detect_cpu_device()
         }
     }
 

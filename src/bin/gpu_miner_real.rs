@@ -8,12 +8,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
+use silver_pow::StratumPoolClient;
 
 /// Convert 32 bytes to u256 (big-endian)
 fn u256_from_bytes(bytes: &[u8; 32]) -> u128 {
     let mut result = 0u128;
-    for i in 0..16 {
-        result = (result << 8) | (bytes[i] as u128);
+    for &byte in bytes {
+        result = (result << 8) | (byte as u128);
     }
     result
 }
@@ -98,6 +99,7 @@ impl MiningStats {
     }
 }
 
+
 /// Real GPU mining loop with Stratum pool
 async fn mining_loop(
     thread_id: usize,
@@ -108,9 +110,7 @@ async fn mining_loop(
     info!("Mining thread {} started", thread_id);
 
     // Create Stratum client
-    let stratum_client = match silver_gpu::StratumPoolClient::new(pool_url.clone(), miner_address.clone()) {
-        client => client,
-    };
+    let stratum_client = StratumPoolClient::new(pool_url.clone(), miner_address.clone());
 
     // Connect to pool with retries
     let mut connect_attempts = 0;
@@ -220,7 +220,7 @@ async fn mining_loop(
         nonce = nonce.wrapping_add(1);
 
         // Yield to other tasks periodically
-        if nonce % 1_000_000 == 0 {
+        if nonce.is_multiple_of(1_000_000) {
             tokio::task::yield_now().await;
         }
     }

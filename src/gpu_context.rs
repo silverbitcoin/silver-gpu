@@ -193,13 +193,11 @@ impl GpuContext {
         let num_cpus = num_cpus::get() as u32;
         let num_physical_cpus = num_cpus::get_physical() as u32;
 
-        // Estimate available system memory
-        let system_memory_mb = if cfg!(target_os = "macos") {
-            8192 // Default estimate
-        } else if cfg!(target_os = "linux") {
-            8192
-        } else {
+        // Estimate available system memory based on OS
+        let system_memory_mb = if cfg!(target_os = "windows") {
             4096
+        } else {
+            8192 // macOS and Linux typically have more available memory
         };
 
         Ok(GpuDeviceInfo {

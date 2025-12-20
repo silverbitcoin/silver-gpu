@@ -234,10 +234,10 @@ struct WorkItem {
 /// Mining result from GPU
 #[derive(Debug, Clone)]
 struct MiningResult {
-    _work_id: Vec<u8>,
+    work_id: Vec<u8>,
     nonce: u64,
-    _hash: Vec<u8>,
-    _timestamp: u64,
+    hash: Vec<u8>,
+    timestamp: u64,
 }
 
 impl GpuContext {

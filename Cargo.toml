@@ -38,6 +38,11 @@ sha2 = { workspace = true }
 # CPU utilities
 num_cpus = "1.16"
 
+# Mining dependencies
+reqwest = { version = "0.11", features = ["json"] }
+clap = { version = "4.4", features = ["derive"] }
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+
 # GPU libraries (optional features)
 ocl = { version = "0.19", optional = true }
 cudarc = { version = "0.12", optional = true }
@@ -51,9 +56,11 @@ all-gpu = ["opencl", "cuda"]
 [dev-dependencies]
 tempfile = { workspace = true }
 criterion = { workspace = true }
-clap = { workspace = true }
-tracing-subscriber = { workspace = true }
 
 [[bench]]
 name = "gpu_benchmarks"
 harness = false
+
+[[bin]]
+name = "gpu_miner_real"
+path = "src/bin/gpu_miner_real.rs"

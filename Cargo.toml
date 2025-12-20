@@ -51,6 +51,8 @@ all-gpu = ["opencl", "cuda"]
 [dev-dependencies]
 tempfile = { workspace = true }
 criterion = { workspace = true }
+clap = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 [[bench]]
 name = "gpu_benchmarks"

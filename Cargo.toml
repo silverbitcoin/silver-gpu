@@ -1,10 +1,12 @@
 [package]
 name = "silver-gpu"
 version = "2.5.3"
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
-repository.workspace = true
+edition = "2021"
+rust-version = "1.90"
+authors = ["SilverBitcoin Team <team@silverbitcoin.org>"]
+license = "Apache-2.0"
+repository = "https://github.com/silverbitcoin/silverbitcoin"
+homepage = "https://silverbitcoin.org"
 keywords = ["gpu", "cuda", "acceleration", "mining"]
 categories = ["hardware-support"]
 description = "GPU acceleration for SilverBitcoin mining and computation"
@@ -13,35 +15,33 @@ description = "GPU acceleration for SilverBitcoin mining and computation"
 silver-core = { path = "../silver-core" }
 silver-pow = { path = "../silver-pow" }
 
-tokio = { workspace = true }
-async-trait = { workspace = true }
+tokio = { version = "1.48", features = ["full"] }
+async-trait = "0.1"
 
-serde = { workspace = true }
-serde_json = { workspace = true }
-bincode = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+anyhow = "1.0"
 
-thiserror = { workspace = true }
-anyhow = { workspace = true }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+bytes = "1.5"
+hex = "0.4"
 
-tracing = { workspace = true }
-bytes = { workspace = true }
-hex = { workspace = true }
+parking_lot = "0.12"
+dashmap = "5.5"
 
-parking_lot = { workspace = true }
-dashmap = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }
 
-chrono = { workspace = true }
-
-# Cryptography
-sha2 = { workspace = true }
+# Cryptography (512-bit only)
+sha2 = "0.10"
 
 # CPU utilities
 num_cpus = "1.16"
 
 # Mining dependencies
-reqwest = { version = "0.11", features = ["json"] }
-clap = { version = "4.4", features = ["derive"] }
-tracing-subscriber = { version = "0.3", features = ["fmt"] }
+reqwest = { version = "0.12", features = ["json"] }
+clap = { version = "4.5", features = ["derive"] }
 
 # GPU libraries (optional features)
 ocl = { version = "0.19", optional = true }
@@ -54,8 +54,8 @@ cuda = ["cudarc"]
 all-gpu = ["opencl", "cuda"]
 
 [dev-dependencies]
-tempfile = { workspace = true }
-criterion = { workspace = true }
+tempfile = "3.8"
+criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
 
 [[bench]]
 name = "gpu_benchmarks"

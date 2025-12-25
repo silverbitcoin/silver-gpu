@@ -1,6 +1,6 @@
 [package]
 name = "silver-gpu"
-version = "2.5.3"
+version = "2.5.4"
 edition = "2021"
 rust-version = "1.90"
 authors = ["SilverBitcoin Team <team@silverbitcoin.org>"]
@@ -62,5 +62,5 @@ name = "gpu_benchmarks"
 harness = false
 
 [[bin]]
-name = "gpu_miner_real"
+name = "gpu-miner"
 path = "src/bin/gpu_miner_real.rs"

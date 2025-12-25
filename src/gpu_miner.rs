@@ -287,38 +287,41 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_gpu_miner_start_stop() {
+    async fn test_gpu_miner_start_stop() -> Result<()> {
         let config = GpuConfig::default().with_backend(crate::GpuBackend::Cpu);
-        let miner = GpuMiner::new(config).await.unwrap();
+        let miner = GpuMiner::new(config).await?;
 
         assert!(!miner.is_running().await);
-        assert!(miner.start().await.is_ok());
+        miner.start().await?;
         assert!(miner.is_running().await);
-        assert!(miner.stop().await.is_ok());
+        miner.stop().await?;
         assert!(!miner.is_running().await);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_gpu_miner_stats() {
+    async fn test_gpu_miner_stats() -> Result<()> {
         let config = GpuConfig::default().with_backend(crate::GpuBackend::Cpu);
-        let miner = GpuMiner::new(config).await.unwrap();
+        let miner = GpuMiner::new(config).await?;
 
         let stats = miner.get_stats().await;
         assert_eq!(stats.total_hashes, 0);
         assert_eq!(stats.valid_proofs, 0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_gpu_miner_reset_stats() {
+    async fn test_gpu_miner_reset_stats() -> Result<()> {
         let config = GpuConfig::default().with_backend(crate::GpuBackend::Cpu);
-        let miner = GpuMiner::new(config).await.unwrap();
+        let miner = GpuMiner::new(config).await?;
 
         miner.total_hashes.store(1000, Ordering::Relaxed);
         let stats = miner.get_stats().await;
         assert_eq!(stats.total_hashes, 1000);
 
-        assert!(miner.reset_stats().await.is_ok());
+        miner.reset_stats().await?;
         let stats = miner.get_stats().await;
         assert_eq!(stats.total_hashes, 0);
+        Ok(())
     }
 }

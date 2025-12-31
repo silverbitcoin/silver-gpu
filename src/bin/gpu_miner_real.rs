@@ -3,20 +3,20 @@
 
 use clap::Parser;
 use sha2::{Digest, Sha512};
+use silver_pow::StratumPoolClient;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tracing::{error, info, warn};
-use silver_pow::StratumPoolClient;
+use tracing::{debug, error, info, warn};
 
 /// Real u512 implementation for SHA-512 hash comparison
 /// Represents a 512-bit unsigned integer as four u128 values (for proper 512-bit arithmetic)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct U512 {
-    part0: u128,  // Bytes 0-15
-    part1: u128,  // Bytes 16-31
-    part2: u128,  // Bytes 32-47
-    part3: u128,  // Bytes 48-63
+    part0: u128, // Bytes 0-15
+    part1: u128, // Bytes 16-31
+    part2: u128, // Bytes 32-47
+    part3: u128, // Bytes 48-63
 }
 
 impl std::fmt::Display for U512 {
@@ -36,20 +36,25 @@ impl U512 {
         let mut p1_bytes = [0u8; 16];
         let mut p2_bytes = [0u8; 16];
         let mut p3_bytes = [0u8; 16];
-        
+
         p0_bytes.copy_from_slice(&bytes[0..16]);
         p1_bytes.copy_from_slice(&bytes[16..32]);
         p2_bytes.copy_from_slice(&bytes[32..48]);
         p3_bytes.copy_from_slice(&bytes[48..64]);
-        
+
         let part0 = u128::from_be_bytes(p0_bytes);
         let part1 = u128::from_be_bytes(p1_bytes);
         let part2 = u128::from_be_bytes(p2_bytes);
         let part3 = u128::from_be_bytes(p3_bytes);
-        
-        U512 { part0, part1, part2, part3 }
+
+        U512 {
+            part0,
+            part1,
+            part2,
+            part3,
+        }
     }
-    
+
     /// Divide U512 by u128 using proper long division
     /// Returns U512 = self / divisor
     fn div_u128(self, divisor: u128) -> U512 {
@@ -61,7 +66,7 @@ impl U512 {
                 part3: u128::MAX,
             };
         }
-        
+
         // Perform long division on 512-bit number
         let mut result = U512 {
             part0: 0,
@@ -69,21 +74,21 @@ impl U512 {
             part2: 0,
             part3: 0,
         };
-        
+
         let mut remainder: u128 = 0;
-        
+
         // Process each 128-bit part from most significant to least significant
         for part in [&self.part0, &self.part1, &self.part2, &self.part3].iter() {
             let combined = (remainder << 64) | (*part >> 64);
             let q_high = combined / divisor;
             remainder = combined % divisor;
-            
+
             let combined_low = (remainder << 64) | (*part & 0xFFFFFFFFFFFFFFFF);
             let q_low = combined_low / divisor;
             remainder = combined_low % divisor;
-            
+
             let quotient = (q_high << 64) | q_low;
-            
+
             match result.part0 {
                 0 if result.part1 == 0 && result.part2 == 0 => {
                     result.part0 = quotient;
@@ -99,10 +104,10 @@ impl U512 {
                 }
             }
         }
-        
+
         result
     }
-    
+
     /// Maximum U512 value
     fn max() -> Self {
         U512 {
@@ -199,7 +204,6 @@ impl MiningStats {
     }
 }
 
-
 /// Real GPU mining loop with Stratum pool
 async fn mining_loop(
     thread_id: usize,
@@ -223,7 +227,10 @@ async fn mining_loop(
             Err(e) => {
                 connect_attempts += 1;
                 if connect_attempts >= 5 {
-                    error!("Thread {}: Failed to connect after 5 attempts: {}", thread_id, e);
+                    error!(
+                        "Thread {}: Failed to connect after 5 attempts: {}",
+                        thread_id, e
+                    );
                     return;
                 }
                 warn!(
@@ -241,10 +248,31 @@ async fn mining_loop(
     let mut keepalive_check = Instant::now();
 
     loop {
-        // Send keepalive every 20 seconds to maintain connection
-        if keepalive_check.elapsed() > Duration::from_secs(20) {
-            if let Err(e) = stratum_client.send_keepalive().await {
-                warn!("Thread {}: Keepalive failed: {}", thread_id, e);
+        // PRODUCTION FIX: Send keepalive every 15 seconds to maintain connection
+        // This matches the stratum_client keepalive interval
+        // Prevents "Broken pipe" errors from pool timeout
+        if keepalive_check.elapsed() > Duration::from_secs(15) {
+            match stratum_client.send_keepalive().await {
+                Ok(_) => {
+                    debug!("Thread {}: Keepalive sent successfully", thread_id);
+                }
+                Err(e) => {
+                    warn!("Thread {}: Keepalive failed: {}", thread_id, e);
+                    
+                    // PRODUCTION FIX: Trigger immediate reconnect on keepalive failure
+                    // This prevents getting stuck in a broken connection state
+                    warn!("Thread {}: Triggering reconnect due to keepalive failure", thread_id);
+                    match stratum_client.reconnect().await {
+                        Ok(_) => {
+                            info!("Thread {}: Reconnected to pool after keepalive failure", thread_id);
+                        }
+                        Err(e) => {
+                            error!("Thread {}: Reconnection failed: {}", thread_id, e);
+                            tokio::time::sleep(Duration::from_secs(5)).await;
+                            continue;
+                        }
+                    }
+                }
             }
             keepalive_check = Instant::now();
         }
@@ -284,7 +312,7 @@ async fn mining_loop(
 
         // Real difficulty validation: convert full SHA-512 hash to u512 and compare with target
         let hash_vec = hash.to_vec();
-        
+
         // SHA-512 always produces exactly 64 bytes, so this conversion should always succeed
         let hash_bytes: [u8; 64] = match hash_vec.as_slice().try_into() {
             Ok(bytes) => bytes,
@@ -294,7 +322,7 @@ async fn mining_loop(
                 continue;
             }
         };
-        
+
         let hash_u512 = u512_from_bytes(&hash_bytes);
 
         // Pool difficulty target: 1,000,000,000
@@ -316,7 +344,7 @@ async fn mining_loop(
 
             // Check if it's a block (meets block difficulty) BEFORE submitting
             let is_block = hash_u512 <= block_target;
-            
+
             if is_block {
                 stats.blocks_found.fetch_add(1, Ordering::Relaxed);
                 info!("🎉 BLOCK FOUND! Hash: {}", hash_hex);
@@ -331,10 +359,13 @@ async fn mining_loop(
             } else {
                 format!("{:x}_{}", nonce, &hash_hex[0..16])
             };
-            match stratum_client.submit_share(&job_id, nonce, &hash_hex, is_block).await {
+            match stratum_client
+                .submit_share(&job_id, nonce, &hash_hex, is_block)
+                .await
+            {
                 Ok(true) => {
                     stats.valid_shares.fetch_add(1, Ordering::Relaxed);
-                    
+
                     if is_block {
                         info!("✅ Block accepted by pool!");
                     }
@@ -363,11 +394,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize logging
     tracing_subscriber::fmt()
-        .with_max_level(
-            args.log_level
-                .parse()
-                .unwrap_or(tracing::Level::INFO),
-        )
+        .with_max_level(args.log_level.parse().unwrap_or(tracing::Level::INFO))
         .init();
 
     info!("═══════════════════════════════════════════════════════════");

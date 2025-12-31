@@ -1,6 +1,5 @@
 //! GPU kernels for cryptographic operations
 
-
 use serde::{Deserialize, Serialize};
 
 /// GPU kernel for SHA-512 hashing
@@ -121,7 +120,8 @@ __kernel void sha512_hash(
         }
     }
 }
-        "#.to_string()
+        "#
+        .to_string()
     }
 
     /// Get CUDA kernel source code for SHA-512
@@ -153,7 +153,8 @@ __global__ void sha512_hash(
     // SHA-512 computation (similar to OpenCL)
     // ...
 }
-        "#.to_string()
+        "#
+        .to_string()
     }
 }
 

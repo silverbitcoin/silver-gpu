@@ -10,8 +10,8 @@
 //! - CUDA (NVIDIA)
 
 pub mod errors;
-pub mod gpu_miner;
 pub mod gpu_context;
+pub mod gpu_miner;
 pub mod kernels;
 
 pub use errors::{GpuError, Result};

@@ -59,10 +59,7 @@ impl GpuMiner {
 
         let context = Arc::new(GpuContext::new(config)?);
 
-        info!(
-            "GPU miner initialized: {}",
-            context.device_info()
-        );
+        info!("GPU miner initialized: {}", context.device_info());
 
         Ok(Self {
             config,
@@ -119,9 +116,10 @@ impl GpuMiner {
     async fn mine_batch_cuda(&self, data: &[u8], target: &[u8]) -> Result<Option<Vec<u8>>> {
         #[cfg(feature = "cuda")]
         {
-            use sha2::{Sha512, Digest};
+            use sha2::{Digest, Sha512};
 
-            let hashes_per_batch = self.config.threads_per_block as u64 * self.config.num_blocks as u64;
+            let hashes_per_batch =
+                self.config.threads_per_block as u64 * self.config.num_blocks as u64;
 
             // Real CUDA mining would:
             // 1. Allocate GPU memory for input/output
@@ -153,7 +151,9 @@ impl GpuMiner {
         {
             // CUDA not available - log and return error
             debug!("CUDA mining requested but CUDA feature not compiled. Data size: {}, Target size: {}", data.len(), target.len());
-            Err(GpuError::BackendNotSupported("CUDA not compiled".to_string()))
+            Err(GpuError::BackendNotSupported(
+                "CUDA not compiled".to_string(),
+            ))
         }
     }
 
@@ -161,9 +161,10 @@ impl GpuMiner {
     async fn mine_batch_opencl(&self, data: &[u8], target: &[u8]) -> Result<Option<Vec<u8>>> {
         #[cfg(feature = "opencl")]
         {
-            use sha2::{Sha512, Digest};
+            use sha2::{Digest, Sha512};
 
-            let hashes_per_batch = self.config.threads_per_block as u64 * self.config.num_blocks as u64;
+            let hashes_per_batch =
+                self.config.threads_per_block as u64 * self.config.num_blocks as u64;
 
             // Real OpenCL mining would:
             // 1. Create command queue
@@ -196,13 +197,15 @@ impl GpuMiner {
         {
             // OpenCL not available - log and return error
             debug!("OpenCL mining requested but OpenCL feature not compiled. Data size: {}, Target size: {}", data.len(), target.len());
-            Err(GpuError::BackendNotSupported("OpenCL not compiled".to_string()))
+            Err(GpuError::BackendNotSupported(
+                "OpenCL not compiled".to_string(),
+            ))
         }
     }
 
     /// Mine batch using CPU (fallback)
     async fn mine_batch_cpu(&self, data: &[u8], target: &[u8]) -> Result<Option<Vec<u8>>> {
-        use sha2::{Sha512, Digest};
+        use sha2::{Digest, Sha512};
 
         let hashes_per_batch = self.config.threads_per_block as u64 * self.config.num_blocks as u64;
 

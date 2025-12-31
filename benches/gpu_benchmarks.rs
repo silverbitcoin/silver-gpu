@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use silver_gpu::{GpuConfig, GpuBackend};
+use silver_gpu::{GpuBackend, GpuConfig};
 
 fn benchmark_gpu_config(c: &mut Criterion) {
     c.bench_function("gpu_config_creation", |b| {

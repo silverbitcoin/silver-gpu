@@ -42,13 +42,11 @@ impl DeviceMemory {
 
     fn allocate(&mut self, size: u64) -> Result<()> {
         if self.allocated_memory + size > self.total_memory {
-            return Err(GpuError::MemoryAllocationFailed(
-                format!(
-                    "Insufficient GPU memory: requested {}, available {}",
-                    size,
-                    self.total_memory - self.allocated_memory
-                ),
-            ));
+            return Err(GpuError::MemoryAllocationFailed(format!(
+                "Insufficient GPU memory: requested {}, available {}",
+                size,
+                self.total_memory - self.allocated_memory
+            )));
         }
 
         self.allocated_memory += size;
@@ -88,7 +86,9 @@ impl GpuContext {
         let device_info = Self::detect_gpu_device(config.backend)?;
         debug!("GPU device detected: {}", device_info);
 
-        let device_memory = Arc::new(Mutex::new(DeviceMemory::new(device_info.memory_mb * 1024 * 1024)));
+        let device_memory = Arc::new(Mutex::new(DeviceMemory::new(
+            device_info.memory_mb * 1024 * 1024,
+        )));
 
         // Initialize backend-specific resources
         #[cfg(feature = "opencl")]
@@ -163,10 +163,10 @@ impl GpuContext {
         {
             use cudarc::driver::CudaDevice;
 
-            let device = CudaDevice::new(0)
-                .map_err(|_| GpuError::DeviceNotFound)?;
+            let device = CudaDevice::new(0).map_err(|_| GpuError::DeviceNotFound)?;
 
-            let props = device.get_device_properties()
+            let props = device
+                .get_device_properties()
                 .map_err(|_| GpuError::DeviceNotFound)?;
 
             let name = format!("NVIDIA {}", props.name);
@@ -186,7 +186,9 @@ impl GpuContext {
 
         #[cfg(not(feature = "cuda"))]
         {
-            Err(GpuError::BackendNotSupported("CUDA not compiled".to_string()))
+            Err(GpuError::BackendNotSupported(
+                "CUDA not compiled".to_string(),
+            ))
         }
     }
 
@@ -204,7 +206,10 @@ impl GpuContext {
 
         Ok(GpuDeviceInfo {
             id: 0,
-            name: format!("CPU ({} logical, {} physical cores)", num_cpus, num_physical_cpus),
+            name: format!(
+                "CPU ({} logical, {} physical cores)",
+                num_cpus, num_physical_cpus
+            ),
             backend: GpuBackend::Cpu,
             compute_capability: "1.0".to_string(),
             memory_mb: system_memory_mb,
@@ -225,8 +230,9 @@ impl GpuContext {
     fn init_cuda() -> Result<cudarc::driver::Device> {
         use cudarc::driver::CudaDevice;
 
-        let device = CudaDevice::new(0)
-            .map_err(|_| GpuError::InitializationFailed("Failed to initialize CUDA device".to_string()))?;
+        let device = CudaDevice::new(0).map_err(|_| {
+            GpuError::InitializationFailed("Failed to initialize CUDA device".to_string())
+        })?;
 
         Ok(device)
     }
@@ -248,25 +254,35 @@ impl GpuContext {
 
     /// Get available GPU memory in MB
     pub fn available_memory(&self) -> u64 {
-        let mem = self.device_memory.lock().unwrap();
+        let mem = self.device_memory.lock().unwrap_or_else(|e| {
+            warn!("Failed to acquire lock: {}", e);
+            e.into_inner()
+        });
         mem.available_memory() / (1024 * 1024)
     }
 
     /// Get allocated GPU memory in MB
     pub fn allocated_memory(&self) -> u64 {
-        let mem = self.device_memory.lock().unwrap();
+        let mem = self.device_memory.lock().unwrap_or_else(|e| {
+            warn!("Failed to acquire lock: {}", e);
+            e.into_inner()
+        });
         mem.allocated_memory / (1024 * 1024)
     }
 
     /// Allocate GPU memory
     pub fn allocate_memory(&self, size_mb: u64) -> Result<()> {
-        let mut mem = self.device_memory.lock().unwrap();
+        let mut mem = self.device_memory.lock().map_err(|e| {
+            GpuError::Internal(format!("Failed to acquire lock: {}", e))
+        })?;
         mem.allocate(size_mb * 1024 * 1024)
     }
 
     /// Deallocate GPU memory
     pub fn deallocate_memory(&self, size_mb: u64) -> Result<()> {
-        let mut mem = self.device_memory.lock().unwrap();
+        let mut mem = self.device_memory.lock().map_err(|e| {
+            GpuError::Internal(format!("Failed to acquire lock: {}", e))
+        })?;
         mem.deallocate(size_mb * 1024 * 1024)
     }
 
@@ -281,7 +297,8 @@ impl GpuContext {
 
         #[cfg(feature = "cuda")]
         if let Some(ref device) = self.cuda_device {
-            device.synchronize()
+            device
+                .synchronize()
                 .map_err(|_| GpuError::Internal("CUDA synchronization failed".to_string()))?;
         }
 
@@ -293,7 +310,9 @@ impl GpuContext {
         debug!("Resetting GPU context");
 
         // Clear memory allocations
-        let mut mem = self.device_memory.lock().unwrap();
+        let mut mem = self.device_memory.lock().map_err(|e| {
+            GpuError::Internal(format!("Failed to acquire lock: {}", e))
+        })?;
         mem.allocated_memory = 0;
         mem.allocations.clear();
 
